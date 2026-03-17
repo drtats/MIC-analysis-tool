@@ -1,0 +1,28 @@
+# Local execution database containing experimental data
+mic_analysis.db
+
+# Streamlit Local Secrets (Crucial to ignore!)
+.streamlit/
+secrets.toml
+.env*
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE directories
+.vscode/
+.idea/
+.spyderproject/
+
+# Windows specific
+Thumbs.db
+Desktop.ini
