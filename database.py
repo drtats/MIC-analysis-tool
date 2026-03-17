@@ -13,6 +13,7 @@ class TursoCursor:
         self.token = token
         self._description = None
         self._results = []
+        self._rowcount = -1
 
     def _execute_remote(self, sql, args=()):
         mapped_args = []
@@ -61,8 +62,11 @@ class TursoCursor:
                         parsed_row.append(val_dict.get("value", None))
                 parsed_rows.append(tuple(parsed_row))
             self._results = parsed_rows
+            self._rowcount = len(parsed_rows)
         else:
             self._results = []
+            # For non-select statements, affected_row_count might be in res
+            self._rowcount = res.get("affected_row_count", 0) if "rows" not in res else len(self._results)
             
         return self
 
@@ -75,14 +79,33 @@ class TursoCursor:
     def description(self):
         return self._description
 
+    @property
+    def rowcount(self):
+        return self._rowcount
+
     def fetchone(self):
-        return self._results[0] if self._results else None
+        return self._results.pop(0) if self._results else None
         
     def fetchall(self):
-        return self._results
+        res = self._results
+        self._results = []
+        return res
         
+    def fetchmany(self, size=1):
+        res = self._results[:size]
+        self._results = self._results[size:]
+        return res
+
     def close(self):
         pass
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self._results:
+            raise StopIteration
+        return self._results.pop(0)
 
 class TursoConnection:
     def __init__(self, url, token):
@@ -93,7 +116,11 @@ class TursoConnection:
         return TursoCursor(self.url, self.token)
         
     def execute(self, sql, args=()):
-        return self.cursor().execute(sql, args)
+        # DBAPI2 execute usually returns None, but some impls return the cursor.
+        # However, custom ones often benefit from returning self if chained.
+        # But here we should probably return a cursor if we want to mimic sqlite3.
+        cur = self.cursor()
+        return cur.execute(sql, args)
         
     def commit(self):
         pass
