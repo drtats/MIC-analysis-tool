@@ -20,7 +20,9 @@ def get_connection():
                  pass
             return libsql.connect(database=url, auth_token=token)
     except Exception as e:
-        print(f"Failed to connect to Turso: {e}")
+        import streamlit as st
+        st.error(f"Failed to connect to Turso: {e}")
+        pass
     
     return sqlite3.connect(DB_NAME)
 
