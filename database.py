@@ -80,6 +80,9 @@ class TursoCursor:
         
     def fetchall(self):
         return self._results
+        
+    def close(self):
+        pass
 
 class TursoConnection:
     def __init__(self, url, token):
