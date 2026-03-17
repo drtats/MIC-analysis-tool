@@ -3,4 +3,4 @@ pandas
 numpy
 plotly
 pydantic
-libsql-experimental
+libsql-client

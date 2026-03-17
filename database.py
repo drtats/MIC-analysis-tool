@@ -9,12 +9,18 @@ def get_connection():
     try:
         import streamlit as st
         if hasattr(st, "secrets") and "TURSO_DATABASE_URL" in st.secrets and "TURSO_AUTH_TOKEN" in st.secrets:
+            # We use libsql_experimental as the drop-in sqlite3 replacement
             import libsql_experimental as libsql
             url = st.secrets["TURSO_DATABASE_URL"]
             token = st.secrets["TURSO_AUTH_TOKEN"]
+            import platform
+            if platform.system() == "Windows":
+                 # On Windows, libsql-experimental might have issues, fallback to SQLite if URL looks local, but here we expect Turso.
+                 # Actually libsql-experimental has windows wheels now, but let's just let it run.
+                 pass
             return libsql.connect(database=url, auth_token=token)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Failed to connect to Turso: {e}")
     
     return sqlite3.connect(DB_NAME)
 
