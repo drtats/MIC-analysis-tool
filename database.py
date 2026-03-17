@@ -5,20 +5,109 @@ from typing import List, Dict, Any, Optional
 
 DB_NAME = "mic_analysis.db"
 
+import requests
+
+class TursoCursor:
+    def __init__(self, url, token):
+        self.url = url
+        self.token = token
+        self._description = None
+        self._results = []
+
+    def _execute_remote(self, sql, args=()):
+        mapped_args = []
+        for arg in args:
+            if arg is None:
+                mapped_args.append({"type": "null"})
+            elif isinstance(arg, int):
+                mapped_args.append({"type": "integer", "value": str(arg)})
+            elif isinstance(arg, float):
+                mapped_args.append({"type": "float", "value": arg})
+            else:
+                mapped_args.append({"type": "text", "value": str(arg)})
+
+        payload = {
+            "requests": [
+                {"type": "execute", "stmt": {"sql": sql, "args": mapped_args}},
+                {"type": "close"}
+            ]
+        }
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        resp = requests.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
+        resp.raise_for_status()
+        results = resp.json()["results"]
+        if results[0]["type"] == "error":
+            raise Exception(results[0]["error"]["message"])
+        
+        res = results[0]["response"]["result"]
+        if "cols" in res:
+            self._description = [(col["name"], None, None, None, None, None, None) for col in res["cols"]]
+        else:
+            self._description = None
+            
+        if "rows" in res:
+            # Depending on libsql version, rows are dictionaries with {"type": "text", "value": "..."}
+            parsed_rows = []
+            for row in res["rows"]:
+                parsed_row = []
+                for val_dict in row:
+                    if val_dict["type"] == "null":
+                        parsed_row.append(None)
+                    elif val_dict["type"] == "integer":
+                        parsed_row.append(int(val_dict["value"]))
+                    elif val_dict["type"] == "float":
+                        parsed_row.append(float(val_dict["value"]))
+                    else:
+                        parsed_row.append(val_dict.get("value", None))
+                parsed_rows.append(tuple(parsed_row))
+            self._results = parsed_rows
+        else:
+            self._results = []
+            
+        return self
+
+    def execute(self, sql, args=()):
+        if str(sql).strip().upper() == "BEGIN TRANSACTION":
+            return self
+        return self._execute_remote(sql, args)
+        
+    @property
+    def description(self):
+        return self._description
+
+    def fetchone(self):
+        return self._results[0] if self._results else None
+        
+    def fetchall(self):
+        return self._results
+
+class TursoConnection:
+    def __init__(self, url, token):
+        self.url = url.replace("libsql://", "https://").replace("wss://", "https://")
+        self.token = token
+        
+    def cursor(self):
+        return TursoCursor(self.url, self.token)
+        
+    def execute(self, sql, args=()):
+        return self.cursor().execute(sql, args)
+        
+    def commit(self):
+        pass
+        
+    def rollback(self):
+        pass
+        
+    def close(self):
+        pass
+
 def get_connection():
     try:
         import streamlit as st
         if hasattr(st, "secrets") and "TURSO_DATABASE_URL" in st.secrets and "TURSO_AUTH_TOKEN" in st.secrets:
-            # We use libsql_experimental as the drop-in sqlite3 replacement
-            import libsql_experimental as libsql
             url = st.secrets["TURSO_DATABASE_URL"]
             token = st.secrets["TURSO_AUTH_TOKEN"]
-            import platform
-            if platform.system() == "Windows":
-                 # On Windows, libsql-experimental might have issues, fallback to SQLite if URL looks local, but here we expect Turso.
-                 # Actually libsql-experimental has windows wheels now, but let's just let it run.
-                 pass
-            return libsql.connect(database=url, auth_token=token)
+            return TursoConnection(url, token)
     except Exception as e:
         import streamlit as st
         st.error(f"Failed to connect to Turso: {e}")

@@ -1,4 +1,0 @@
-cmake
-pkg-config
-build-essential
-libssl-dev
