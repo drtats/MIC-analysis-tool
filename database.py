@@ -8,9 +8,10 @@ DB_NAME = "mic_analysis.db"
 import requests
 
 class TursoCursor:
-    def __init__(self, url, token):
+    def __init__(self, url, token, session=None):
         self.url = url
         self.token = token
+        self.session = session or requests
         self._description = None
         self._results = []
         self._rowcount = -1
@@ -44,7 +45,7 @@ class TursoCursor:
             ]
         }
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        resp = requests.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
+        resp = self.session.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
         resp.raise_for_status()
         results = resp.json()["results"]
         if results[0]["type"] == "error":
@@ -123,7 +124,7 @@ class TursoCursor:
 
         payload = {"requests": requests_list}
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        resp = requests.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
+        resp = self.session.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
         resp.raise_for_status()
         
         # We don't necessarily update _results/_description here in a simple way 
@@ -143,11 +144,12 @@ class TursoCursor:
 
 class TursoConnection:
     def __init__(self, url, token):
-        self.url = url.replace("libsql://", "https://").replace("wss://", "https://")
+        self.url = url.replace("libsql://", "https://").replace("wss://", "https://").rstrip("/")
         self.token = token
+        self.session = requests.Session()
         
     def cursor(self):
-        return TursoCursor(self.url, self.token)
+        return TursoCursor(self.url, self.token, self.session)
         
     def execute(self, sql, args=()):
         cur = self.cursor()
