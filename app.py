@@ -16,6 +16,13 @@ from plotting import plot_plate_heatmap, plot_growth_map
 # Page Config
 st.set_page_config(page_title="MIC Analysis Tool", layout="wide")
 
+def get_admin_password():
+    try:
+        with open(".admin_password", "r") as f:
+            return f.read().strip()
+    except:
+        return None
+
 # Initialize DB on first run
 if 'db_init' not in st.session_state:
     init_db()
@@ -341,6 +348,7 @@ elif mode == "Plate Library":
         SELECT p.plate_id, p.plate_name, e.date, e.person, e.reader, p.threshold, p.created_at
         FROM plates p
         JOIN experiments e ON p.experiment_id = e.experiment_id
+        WHERE p.is_deleted = 0
         ORDER BY p.created_at DESC
     ''', conn)
     conn.close()
@@ -528,6 +536,7 @@ elif mode == "Search Results":
           AND m.antibiotic = w.antibiotic 
           AND m.media = w.media 
           AND m.replicate = w.replicate
+        WHERE p.is_deleted = 0
     """
     
     # GROUP BY needed because we joined with wells (one row per group)
@@ -600,6 +609,31 @@ if 'wells' in st.session_state and st.session_state.wells:
 
 # INTEGRATED EDITOR IN LIBRARY
 if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
+    st.divider()
+    
+    # Soft Delete Option
+    with st.expander("🗑️ Danger Zone: Soft Delete Plate", expanded=False):
+        st.warning("This will hide the plate from the library and search results, but keep it in the database.")
+        pwd_input = st.text_input("Enter Admin Password to Delete", type="password", key="delete_pwd_input")
+        if st.button("Confirm Soft Delete", type="primary", key="confirm_delete_btn"):
+            admin_pwd = get_admin_password()
+            if admin_pwd and pwd_input == admin_pwd:
+                try:
+                    conn = get_connection()
+                    conn.execute("UPDATE plates SET is_deleted = 1 WHERE plate_id = ?", (selected_pid,))
+                    if hasattr(conn, "commit"): conn.commit()
+                    conn.close()
+                    st.success(f"Plate '{st.session_state.loaded_metadata.get('plate_name')}' soft-deleted successfully.")
+                    # Clear session state
+                    st.session_state.loaded_successfully = False
+                    st.session_state.wells = []
+                    st.session_state.mic_results = []
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Delete failed: {e}")
+            else:
+                st.error("Invalid password.")
+
     st.divider()
     
     # Toggle Lock/Unlock

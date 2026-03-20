@@ -215,6 +215,7 @@ def init_db():
                 threshold_method TEXT,
                 background_method TEXT,
                 created_at TEXT,
+                is_deleted INTEGER DEFAULT 0,
                 FOREIGN KEY (experiment_id) REFERENCES experiments (experiment_id)
             )
         ''', ()),
@@ -293,17 +294,29 @@ def init_db():
             conn.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
         except:
             pass # Already exists
+        
+        # Migration: Check is_deleted in plates
+        try:
+            conn.execute('ALTER TABLE plates ADD COLUMN is_deleted INTEGER DEFAULT 0')
+        except:
+            pass
     else:
         # SQLite path
         cursor = conn.cursor()
         for s, a in stmts:
             cursor.execute(s, a)
         
-        # Migration
+        # Migration: wells
         cursor.execute('PRAGMA table_info(wells)')
         columns = [col[1] for col in cursor.fetchall()]
         if 'extra_labels_json' not in columns:
             cursor.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
+            
+        # Migration: plates
+        cursor.execute('PRAGMA table_info(plates)')
+        p_columns = [col[1] for col in cursor.fetchall()]
+        if 'is_deleted' not in p_columns:
+            cursor.execute('ALTER TABLE plates ADD COLUMN is_deleted INTEGER DEFAULT 0')
         
         conn.commit()
     

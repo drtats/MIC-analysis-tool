@@ -26,3 +26,6 @@ env/
 # Windows specific
 Thumbs.db
 Desktop.ini
+
+# Admin Password (NOT shared on GitHub)
+.admin_password
