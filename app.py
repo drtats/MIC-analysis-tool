@@ -536,13 +536,12 @@ elif mode == "Search Results":
           AND m.antibiotic = w.antibiotic 
           AND m.media = w.media 
           AND m.replicate = w.replicate
-        WHERE p.is_deleted = 0
     """
     
     # GROUP BY needed because we joined with wells (one row per group)
     query += " GROUP BY m.mic_result_id"
     
-    where_clauses = ["1=1"]
+    where_clauses = ["p.is_deleted = 0"]
     params = []
     
     if "All" not in f_strain and f_strain:
