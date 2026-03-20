@@ -345,7 +345,7 @@ elif mode == "Plate Library":
     st.header("Plate Library")
     conn = get_connection()
     df_plates = pd.read_sql_query('''
-        SELECT p.plate_id, p.plate_name, e.date, e.person, e.reader, p.threshold, p.created_at
+        SELECT p.plate_id, p.plate_name, e.date, e.person, e.reader, p.threshold, p.created_at, p.is_locked
         FROM plates p
         JOIN experiments e ON p.experiment_id = e.experiment_id
         WHERE p.is_deleted = 0
@@ -613,8 +613,9 @@ if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
     # Soft Delete Option
     with st.expander("🗑️ Danger Zone: Soft Delete Plate", expanded=False):
         st.warning("This will hide the plate from the library and search results, but keep it in the database.")
-        pwd_input = st.text_input("Enter Admin Password to Delete", type="password", key="delete_pwd_input")
-        if st.button("Confirm Soft Delete", type="primary", key="confirm_delete_btn"):
+        is_locked = st.session_state.loaded_metadata.get('is_locked', 0)
+        pwd_input = st.text_input("Enter Admin Password to Delete", type="password", key="delete_pwd_input", disabled=bool(is_locked))
+        if st.button("Confirm Soft Delete", type="primary", key="confirm_delete_btn", disabled=bool(is_locked)):
             admin_pwd = get_admin_password()
             if admin_pwd and pwd_input == admin_pwd:
                 try:
@@ -635,10 +636,31 @@ if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
 
     st.divider()
     
-    # Toggle Lock/Unlock
+    # Plate Lock Toggle
+    is_locked = bool(st.session_state.loaded_metadata.get('is_locked', 0))
+    new_lock_state = st.checkbox("🔒 Lock this plate (Prevent editing or deletion)", value=is_locked, key="plate_lock_checkbox")
+    
+    if new_lock_state != is_locked:
+        try:
+            conn = get_connection()
+            conn.execute("UPDATE plates SET is_locked = ? WHERE plate_id = ?", (1 if new_lock_state else 0, selected_pid))
+            if hasattr(conn, "commit"): conn.commit()
+            conn.close()
+            st.session_state.loaded_metadata['is_locked'] = 1 if new_lock_state else 0
+            if new_lock_state:
+                st.session_state.lib_edit_mode = False
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to update lock state: {e}")
+
+    # Toggle Lock/Unlock for Editing (UI Session State)
     if not st.session_state.get('lib_edit_mode'):
-        st.info("💡 Data is currently **locked** (View Only). Click the button below to edit.")
-        if st.button("🔓 Unlock Data & Layout for Editing"):
+        if new_lock_state:
+            st.info("🔒 This plate is **Locked**. Uncheck the lock box above to enable editing.")
+        else:
+            st.info("💡 Data is currently **locked** (View Only). Click the button below to edit.")
+        
+        if st.button("🔓 Unlock Data & Layout for Editing", disabled=new_lock_state):
             st.session_state.lib_edit_mode = True
             st.rerun()
     else:

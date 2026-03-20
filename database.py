@@ -216,6 +216,7 @@ def init_db():
                 background_method TEXT,
                 created_at TEXT,
                 is_deleted INTEGER DEFAULT 0,
+                is_locked INTEGER DEFAULT 0,
                 FOREIGN KEY (experiment_id) REFERENCES experiments (experiment_id)
             )
         ''', ()),
@@ -295,9 +296,13 @@ def init_db():
         except:
             pass # Already exists
         
-        # Migration: Check is_deleted in plates
+        # Migration: Check is_deleted and is_locked in plates
         try:
             conn.execute('ALTER TABLE plates ADD COLUMN is_deleted INTEGER DEFAULT 0')
+        except:
+            pass
+        try:
+            conn.execute('ALTER TABLE plates ADD COLUMN is_locked INTEGER DEFAULT 0')
         except:
             pass
     else:
@@ -317,6 +322,8 @@ def init_db():
         p_columns = [col[1] for col in cursor.fetchall()]
         if 'is_deleted' not in p_columns:
             cursor.execute('ALTER TABLE plates ADD COLUMN is_deleted INTEGER DEFAULT 0')
+        if 'is_locked' not in p_columns:
+            cursor.execute('ALTER TABLE plates ADD COLUMN is_locked INTEGER DEFAULT 0')
         
         conn.commit()
     
