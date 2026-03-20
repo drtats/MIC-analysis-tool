@@ -15,17 +15,27 @@ class TursoCursor:
         self._results = []
         self._rowcount = -1
 
-    def _execute_remote(self, sql, args=()):
+    def _map_args(self, args):
         mapped_args = []
         for arg in args:
             if arg is None:
                 mapped_args.append({"type": "null"})
+            elif isinstance(arg, bool):
+                mapped_args.append({"type": "integer", "value": "1" if arg else "0"})
             elif isinstance(arg, int):
                 mapped_args.append({"type": "integer", "value": str(arg)})
             elif isinstance(arg, float):
-                mapped_args.append({"type": "float", "value": arg})
+                import math
+                if math.isnan(arg) or math.isinf(arg):
+                    mapped_args.append({"type": "null"})
+                else:
+                    mapped_args.append({"type": "float", "value": arg})
             else:
                 mapped_args.append({"type": "text", "value": str(arg)})
+        return mapped_args
+
+    def _execute_remote(self, sql, args=()):
+        mapped_args = self._map_args(args)
 
         payload = {
             "requests": [
@@ -96,6 +106,30 @@ class TursoCursor:
         self._results = self._results[size:]
         return res
 
+    def execute_batch(self, stmts: List[tuple]):
+        """
+        Execute multiple statements in a single HTTP request for Turso.
+        stmts: List of (sql, args) tuples.
+        """
+        requests_list = []
+        for sql, args in stmts:
+            if str(sql).strip().upper() == "BEGIN TRANSACTION":
+                continue
+            mapped_args = self._map_args(args)
+            requests_list.append({"type": "execute", "stmt": {"sql": sql, "args": mapped_args}})
+        
+        # Add a close request at the end to clean up the session
+        requests_list.append({"type": "close"})
+
+        payload = {"requests": requests_list}
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        resp = requests.post(f"{self.url}/v2/pipeline", json=payload, headers=headers)
+        resp.raise_for_status()
+        
+        # We don't necessarily update _results/_description here in a simple way 
+        # because there are multiple results. This is mainly for batch inserts.
+        return resp.json()["results"]
+
     def close(self):
         pass
 
@@ -116,11 +150,12 @@ class TursoConnection:
         return TursoCursor(self.url, self.token)
         
     def execute(self, sql, args=()):
-        # DBAPI2 execute usually returns None, but some impls return the cursor.
-        # However, custom ones often benefit from returning self if chained.
-        # But here we should probably return a cursor if we want to mimic sqlite3.
         cur = self.cursor()
         return cur.execute(sql, args)
+
+    def execute_batch(self, stmts: List[tuple]):
+        cur = self.cursor()
+        return cur.execute_batch(stmts)
         
     def commit(self):
         pass
@@ -134,129 +169,144 @@ class TursoConnection:
 def get_connection():
     try:
         import streamlit as st
-        if hasattr(st, "secrets") and "TURSO_DATABASE_URL" in st.secrets and "TURSO_AUTH_TOKEN" in st.secrets:
-            url = st.secrets["TURSO_DATABASE_URL"]
-            token = st.secrets["TURSO_AUTH_TOKEN"]
-            return TursoConnection(url, token)
-    except Exception as e:
-        import streamlit as st
-        st.error(f"Failed to connect to Turso: {e}")
+        # Attempt to get secrets if we are in a streamlit context
+        try:
+            if hasattr(st, "secrets") and "TURSO_DATABASE_URL" in st.secrets and "TURSO_AUTH_TOKEN" in st.secrets:
+                url = st.secrets["TURSO_DATABASE_URL"]
+                token = st.secrets["TURSO_AUTH_TOKEN"]
+                return TursoConnection(url, token)
+        except:
+            # st.secrets might raise an error if not in streamlit
+            pass
+    except ImportError:
         pass
     
     return sqlite3.connect(DB_NAME)
 
 def init_db():
     conn = get_connection()
-    cursor = conn.cursor()
-
-    # Create Experiments table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS experiments (
-            experiment_id TEXT PRIMARY KEY,
-            date TEXT,
-            person TEXT,
-            reader TEXT,
-            incubation_time REAL,
-            inoculum_od REAL,
-            growth_phase TEXT,
-            harvest_od REAL,
-            doubling_time REAL,
-            notes TEXT,
-            extra_metadata_json TEXT
-        )
-    ''')
-
-    # Create Plates table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS plates (
-            plate_id TEXT PRIMARY KEY,
-            experiment_id TEXT,
-            plate_name TEXT,
-            plate_format INTEGER,
-            threshold REAL,
-            threshold_method TEXT,
-            background_method TEXT,
-            created_at TEXT,
-            FOREIGN KEY (experiment_id) REFERENCES experiments (experiment_id)
-        )
-    ''')
-
-    # Create Wells table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS wells (
-            well_id TEXT PRIMARY KEY,
-            plate_id TEXT,
-            well_position TEXT,
-            row INTEGER,
-            column INTEGER,
-            od_raw REAL,
-            od_bg_subtracted REAL,
-            is_blank BOOLEAN,
-            strain TEXT,
-            antibiotic TEXT,
-            concentration REAL,
-            concentration_unit TEXT,
-            media TEXT,
-            replicate INTEGER,
-            growth_call BOOLEAN,
-            notes TEXT,
-            extra_labels_json TEXT,
-            FOREIGN KEY (plate_id) REFERENCES plates (plate_id),
-            UNIQUE(plate_id, well_position)
-        )
-    ''')
-
-    # Create MIC Results table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS mic_results (
-            mic_result_id TEXT PRIMARY KEY,
-            plate_id TEXT,
-            group_id TEXT,
-            strain TEXT,
-            antibiotic TEXT,
-            media TEXT,
-            replicate INTEGER,
-            mic_value REAL,
-            mic_operator TEXT,
-            mic_unit TEXT,
-            threshold_used REAL,
-            lowest_tested_conc REAL,
-            highest_tested_conc REAL,
-            concentration_values_json TEXT,
-            num_points INTEGER,
-            calculation_status TEXT,
-            warning TEXT,
-            FOREIGN KEY (plate_id) REFERENCES plates (plate_id)
-        )
-    ''')
-
-    # Create Saved Options table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS saved_options (
-            option_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT,
-            value TEXT
-        )
-    ''')
     
-    # Create Plate Templates table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS plate_templates (
-            template_id TEXT PRIMARY KEY,
-            template_name TEXT,
-            layout_json TEXT,
-            created_at TEXT
-        )
-    ''')
+    # Create a list of (sql, args)
+    stmts = [
+        # Experiments table
+        ('''
+            CREATE TABLE IF NOT EXISTS experiments (
+                experiment_id TEXT PRIMARY KEY,
+                date TEXT,
+                person TEXT,
+                reader TEXT,
+                incubation_time REAL,
+                inoculum_od REAL,
+                growth_phase TEXT,
+                harvest_od REAL,
+                doubling_time REAL,
+                notes TEXT,
+                extra_metadata_json TEXT
+            )
+        ''', ()),
+        # Plates table
+        ('''
+            CREATE TABLE IF NOT EXISTS plates (
+                plate_id TEXT PRIMARY KEY,
+                experiment_id TEXT,
+                plate_name TEXT,
+                plate_format INTEGER,
+                threshold REAL,
+                threshold_method TEXT,
+                background_method TEXT,
+                created_at TEXT,
+                FOREIGN KEY (experiment_id) REFERENCES experiments (experiment_id)
+            )
+        ''', ()),
+        # Wells table
+        ('''
+            CREATE TABLE IF NOT EXISTS wells (
+                well_id TEXT PRIMARY KEY,
+                plate_id TEXT,
+                well_position TEXT,
+                row INTEGER,
+                column INTEGER,
+                od_raw REAL,
+                od_bg_subtracted REAL,
+                is_blank BOOLEAN,
+                strain TEXT,
+                antibiotic TEXT,
+                concentration REAL,
+                concentration_unit TEXT,
+                media TEXT,
+                replicate INTEGER,
+                growth_call BOOLEAN,
+                notes TEXT,
+                extra_labels_json TEXT,
+                FOREIGN KEY (plate_id) REFERENCES plates (plate_id),
+                UNIQUE(plate_id, well_position)
+            )
+        ''', ()),
+        # MIC Results table
+        ('''
+            CREATE TABLE IF NOT EXISTS mic_results (
+                mic_result_id TEXT PRIMARY KEY,
+                plate_id TEXT,
+                group_id TEXT,
+                strain TEXT,
+                antibiotic TEXT,
+                media TEXT,
+                replicate INTEGER,
+                mic_value REAL,
+                mic_operator TEXT,
+                mic_unit TEXT,
+                threshold_used REAL,
+                lowest_tested_conc REAL,
+                highest_tested_conc REAL,
+                concentration_values_json TEXT,
+                num_points INTEGER,
+                calculation_status TEXT,
+                warning TEXT,
+                FOREIGN KEY (plate_id) REFERENCES plates (plate_id)
+            )
+        ''', ()),
+        # Saved Options table
+        ('''
+            CREATE TABLE IF NOT EXISTS saved_options (
+                option_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT,
+                value TEXT
+            )
+        ''', ()),
+        # Plate Templates table
+        ('''
+            CREATE TABLE IF NOT EXISTS plate_templates (
+                template_id TEXT PRIMARY KEY,
+                template_name TEXT,
+                layout_json TEXT,
+                created_at TEXT
+            )
+        ''', ())
+    ]
 
-    # Migration: Check if extra_labels_json exists in wells
-    cursor.execute('PRAGMA table_info(wells)')
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'extra_labels_json' not in columns:
-        cursor.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
-        print("Added extra_labels_json to wells table.")
-
-    conn.commit()
+    if isinstance(conn, TursoConnection):
+        conn.execute_batch(stmts)
+        # Migration: Check extra_labels_json (this is slightly harder in batch if results are needed)
+        # But we can just run it as a separate execute if needed, or assume it's there.
+        # Actually, let's just run it.
+        try:
+            conn.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
+        except:
+            pass # Already exists
+    else:
+        # SQLite path
+        cursor = conn.cursor()
+        for s, a in stmts:
+            cursor.execute(s, a)
+        
+        # Migration
+        cursor.execute('PRAGMA table_info(wells)')
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'extra_labels_json' not in columns:
+            cursor.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
+        
+        conn.commit()
+    
     conn.close()
 
 if __name__ == "__main__":

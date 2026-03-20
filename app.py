@@ -62,58 +62,74 @@ def check_for_existing_plate(plate_name, date_str):
 def save_plate_to_db(exp: ExperimentData, plate: PlateData, wells: List[WellData], mics: List[MICResult]):
     conn = get_connection()
     try:
-        cursor = conn.cursor()
-        cursor.execute("BEGIN TRANSACTION")
+        stmts = []
         
-        # Insert Experiment
-        cursor.execute('''
+        # 1. Insert/Replace Experiment
+        stmts.append((
+            '''
             INSERT OR REPLACE INTO experiments (
                 experiment_id, date, person, reader, incubation_time, 
                 inoculum_od, growth_phase, harvest_od, doubling_time, notes, extra_metadata_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            exp.experiment_id, exp.date, exp.person, exp.reader, exp.incubation_time,
-            exp.inoculum_od, exp.growth_phase, exp.harvest_od, exp.doubling_time, exp.notes, exp.extra_metadata_json
+            ''',
+            (exp.experiment_id, exp.date, exp.person, exp.reader, exp.incubation_time,
+             exp.inoculum_od, exp.growth_phase, exp.harvest_od, exp.doubling_time, exp.notes, exp.extra_metadata_json)
         ))
         
-        # Insert Plate
-        cursor.execute('''
+        # 2. Insert/Replace Plate
+        stmts.append((
+            '''
             INSERT OR REPLACE INTO plates (plate_id, experiment_id, plate_name, threshold, created_at) 
             VALUES (?, ?, ?, ?, ?)
-        ''', (plate.plate_id, plate.experiment_id, plate.plate_name, plate.threshold, plate.created_at.isoformat()))
+            ''',
+            (plate.plate_id, plate.experiment_id, plate.plate_name, plate.threshold, plate.created_at.isoformat())
+        ))
         
-        # Insert Wells (Clear Slate first)
-        cursor.execute('DELETE FROM wells WHERE plate_id = ?', (plate.plate_id,))
+        # 3. Clear and Insert Wells
+        stmts.append(('DELETE FROM wells WHERE plate_id = ?', (plate.plate_id,)))
         for w in wells:
-            cursor.execute('''
+            stmts.append((
+                '''
                 INSERT INTO wells (
                     well_id, plate_id, well_position, row, column, od_raw, od_bg_subtracted, 
                     is_blank, strain, antibiotic, concentration, concentration_unit, media, replicate, growth_call, notes, extra_labels_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                w.well_id, w.plate_id, w.well_position, w.row, w.column, w.od_raw, w.od_bg_subtracted,
-                w.is_blank, w.strain, w.antibiotic, w.concentration, w.concentration_unit, w.media, w.replicate, 
-                w.growth_call, w.notes, json.dumps(w.extra_labels)
+                ''',
+                (w.well_id, w.plate_id, w.well_position, w.row, w.column, w.od_raw, w.od_bg_subtracted,
+                 w.is_blank, w.strain, w.antibiotic, w.concentration, w.concentration_unit, w.media, w.replicate, 
+                 w.growth_call, w.notes, json.dumps(w.extra_labels))
             ))
             
-        # Insert MIC Results (Clear Slate first)
-        cursor.execute('DELETE FROM mic_results WHERE plate_id = ?', (plate.plate_id,))
+        # 4. Clear and Insert MIC Results
+        stmts.append(('DELETE FROM mic_results WHERE plate_id = ?', (plate.plate_id,)))
         for m in mics:
-            cursor.execute('''
+            stmts.append((
+                '''
                 INSERT INTO mic_results (
                     mic_result_id, plate_id, group_id, strain, antibiotic, media, replicate,
                     mic_value, mic_operator, mic_unit, threshold_used, lowest_tested_conc,
                     highest_tested_conc, concentration_values_json, num_points, calculation_status, warning
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                m.mic_result_id, m.plate_id, m.group_id, m.strain, m.antibiotic, m.media, m.replicate,
-                m.mic_value, m.mic_operator, m.mic_unit, m.threshold_used, m.lowest_tested_conc,
-                m.highest_tested_conc, m.concentration_values_json, m.num_points, m.calculation_status, m.warning
+                ''',
+                (m.mic_result_id, m.plate_id, m.group_id, m.strain, m.antibiotic, m.media, m.replicate,
+                 m.mic_value, m.mic_operator, m.mic_unit, m.threshold_used, m.lowest_tested_conc,
+                 m.highest_tested_conc, m.concentration_values_json, m.num_points, m.calculation_status, m.warning)
             ))
         
-        conn.commit()
+        # Execute based on connection type
+        from database import TursoConnection
+        if isinstance(conn, TursoConnection):
+            conn.execute_batch(stmts)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("BEGIN TRANSACTION")
+            for sql, args in stmts:
+                cursor.execute(sql, args)
+            conn.commit()
+            
     except Exception as e:
-        conn.rollback()
+        if not isinstance(conn, TursoConnection):
+            conn.rollback()
         raise e
     finally:
         conn.close()
