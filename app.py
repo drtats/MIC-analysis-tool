@@ -636,9 +636,9 @@ if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
 
     st.divider()
     
-    # Plate Lock Toggle
+    # Plate Lock Toggle (Deletion Protection)
     is_locked = bool(st.session_state.loaded_metadata.get('is_locked', 0))
-    new_lock_state = st.checkbox("🔒 Lock this plate (Prevent editing or deletion)", value=is_locked, key="plate_lock_checkbox")
+    new_lock_state = st.checkbox("🔒 Locked from Deletion", value=is_locked, key="plate_lock_checkbox")
     
     if new_lock_state != is_locked:
         try:
@@ -655,12 +655,9 @@ if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
 
     # Toggle Lock/Unlock for Editing (UI Session State)
     if not st.session_state.get('lib_edit_mode'):
-        if new_lock_state:
-            st.info("🔒 This plate is **Locked**. Uncheck the lock box above to enable editing.")
-        else:
-            st.info("💡 Data is currently **locked** (View Only). Click the button below to edit.")
+        st.info("💡 Data is currently **locked** (View Only). Click the button below to edit.")
         
-        if st.button("🔓 Unlock Data & Layout for Editing", disabled=new_lock_state):
+        if st.button("🔓 Unlock Data & Layout for Editing"):
             st.session_state.lib_edit_mode = True
             st.rerun()
     else:
