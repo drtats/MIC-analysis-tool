@@ -96,9 +96,10 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
         title="MIC Distribution by Group",
         labels={'mic_value': 'MIC Value'},
         stripmode='overlay',
-        color_discrete_sequence=px.colors.qualitative.Prism,
+        color_discrete_sequence=px.colors.qualitative.Vivid,
         category_orders=category_orders
     )
+    fig.update_traces(marker_size=10, marker_opacity=0.8)
     
     # If multiple grouping columns, we combine them but Plotly doesn't easily handle 
     # category_orders for a combined column unless we pre-sort the DF.
@@ -124,13 +125,15 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Prism,
+            color_discrete_sequence=px.colors.qualitative.Vivid,
             hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
             title="MIC Distribution by Group",
             labels={'Group': ' / '.join(group_cols), 'mic_value': 'MIC Value'},
             stripmode='overlay',
             category_orders={'Group': plot_df['Group'].unique().tolist()} # Use the sorted unique values
         )
+        fig.update_traces(marker_size=10, marker_opacity=0.8)
+        
     elif len(group_cols) == 0:
         plot_df['Group'] = 'All Data'
         fig = px.strip(
@@ -138,11 +141,12 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Prism,
+            color_discrete_sequence=px.colors.qualitative.Vivid,
             title="Global MIC Distribution",
             labels={'mic_value': 'MIC Value'},
             stripmode='overlay'
         )
+        fig.update_traces(marker_size=10, marker_opacity=0.8)
     
     # Update Y-axis to be log2 scaled for MICs
     fig.update_layout(
