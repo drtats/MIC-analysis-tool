@@ -17,11 +17,23 @@ from plotting import plot_plate_heatmap, plot_growth_map
 st.set_page_config(page_title="MIC Analysis Tool", layout="wide")
 
 def get_admin_password():
+    # 1. Try local file (for local development)
     try:
-        with open(".admin_password", "r") as f:
-            return f.read().strip()
+        if os.path.exists(".admin_password"):
+            with open(".admin_password", "r") as f:
+                return f.read().strip()
     except:
-        return None
+        pass
+        
+    # 2. Try st.secrets (for Streamlit Cloud)
+    try:
+        import streamlit as st
+        if "ADMIN_PASSWORD" in st.secrets:
+            return str(st.secrets["ADMIN_PASSWORD"]).strip()
+    except:
+        pass
+        
+    return None
 
 # Initialize DB on first run
 if 'db_init' not in st.session_state:
