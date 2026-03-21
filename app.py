@@ -632,56 +632,14 @@ elif mode == "Visualization":
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            f_strain_sel = st.multiselect("Select Strains", options=all_strains, default=all_strains, key="viz_strain_ms")
+            f_strain = st.multiselect("Filter Strains", options=all_strains, default=all_strains)
         with col_f2:
-            f_ab_sel = st.multiselect("Select Antibiotics", options=all_abs, default=all_abs, key="viz_ab_ms")
+            f_ab = st.multiselect("Filter Antibiotics", options=all_abs, default=all_abs)
             
-        # Initialize and Sync ordered lists in session state
-        if 'viz_order_strain' not in st.session_state: st.session_state.viz_order_strain = all_strains
-        if 'viz_order_ab' not in st.session_state: st.session_state.viz_order_ab = all_abs
-        
-        # Sync: remove items not in selection, add new items at the end
-        st.session_state.viz_order_strain = [s for s in st.session_state.viz_order_strain if s in f_strain_sel]
-        for s in f_strain_sel:
-            if s not in st.session_state.viz_order_strain: st.session_state.viz_order_strain.append(s)
-            
-        st.session_state.viz_order_ab = [a for a in st.session_state.viz_order_ab if a in f_ab_sel]
-        for a in f_ab_sel:
-            if a not in st.session_state.viz_order_ab: st.session_state.viz_order_ab.append(a)
-            
-        # Reorder UI
-        st.subheader("1.5 Reorder Selected Categories")
-        st.info("💡 Use the buttons below to change the display order on the X-axis.")
-        
-        re_col1, re_col2 = st.columns(2)
-        with re_col1:
-            st.write("**Strains Order**")
-            for i, s in enumerate(st.session_state.viz_order_strain):
-                c1, c2, c3 = st.columns([6, 1, 1])
-                c1.write(f"• {s}")
-                if c2.button("🔼", key=f"up_s_{i}") and i > 0:
-                    st.session_state.viz_order_strain[i], st.session_state.viz_order_strain[i-1] = st.session_state.viz_order_strain[i-1], st.session_state.viz_order_strain[i]
-                    st.rerun()
-                if c3.button("🔽", key=f"dn_s_{i}") and i < len(st.session_state.viz_order_strain)-1:
-                    st.session_state.viz_order_strain[i], st.session_state.viz_order_strain[i+1] = st.session_state.viz_order_strain[i+1], st.session_state.viz_order_strain[i]
-                    st.rerun()
-
-        with re_col2:
-            st.write("**Antibiotics Order**")
-            for i, a in enumerate(st.session_state.viz_order_ab):
-                c1, c2, c3 = st.columns([6, 1, 1])
-                c1.write(f"• {a}")
-                if c2.button("🔼", key=f"up_a_{i}") and i > 0:
-                    st.session_state.viz_order_ab[i], st.session_state.viz_order_ab[i-1] = st.session_state.viz_order_ab[i-1], st.session_state.viz_order_ab[i]
-                    st.rerun()
-                if c3.button("🔽", key=f"dn_a_{i}") and i < len(st.session_state.viz_order_ab)-1:
-                    st.session_state.viz_order_ab[i], st.session_state.viz_order_ab[i+1] = st.session_state.viz_order_ab[i+1], st.session_state.viz_order_ab[i]
-                    st.rerun()
-
-        # Apply filters with current order
+        # Apply filters
         df_filtered = df_all[
-            (df_all['strain'].isin(st.session_state.viz_order_strain)) & 
-            (df_all['antibiotic'].isin(st.session_state.viz_order_ab))
+            (df_all['strain'].isin(f_strain)) & 
+            (df_all['antibiotic'].isin(f_ab))
         ].copy()
         
         if df_filtered.empty:
@@ -708,10 +666,10 @@ elif mode == "Visualization":
                 )
                 
             if st.button("Generate Dot Plot", type="primary"):
-                # Use the session state order as categories
+                # Use the multiselect order directly
                 cat_orders = {
-                    "strain": st.session_state.viz_order_strain,
-                    "antibiotic": st.session_state.viz_order_ab
+                    "strain": f_strain,
+                    "antibiotic": f_ab
                 }
                 fig = plot_mic_dot_plot(df_filtered, group_by, color_by, category_orders=cat_orders)
                 if fig:
