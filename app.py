@@ -357,7 +357,7 @@ elif mode == "Plate Library":
     st.header("Plate Library")
     conn = get_connection()
     df_plates = pd.read_sql_query('''
-        SELECT p.plate_id, p.plate_name, e.date, e.person, e.reader, p.threshold, p.created_at, p.is_locked
+        SELECT p.plate_id, p.plate_name, e.date, e.person, e.reader, p.threshold, p.created_at, p.is_locked, p.is_checked
         FROM plates p
         JOIN experiments e ON p.experiment_id = e.experiment_id
         WHERE p.is_deleted = 0
@@ -726,22 +726,37 @@ if mode == "Plate Library" and st.session_state.get('loaded_successfully'):
 
     st.divider()
     
-    # Plate Lock Toggle (Deletion Protection)
-    is_locked = bool(st.session_state.loaded_metadata.get('is_locked', 0))
-    new_lock_state = st.checkbox("🔒 Locked from Deletion", value=is_locked, key="plate_lock_checkbox")
-    
-    if new_lock_state != is_locked:
-        try:
-            conn = get_connection()
-            conn.execute("UPDATE plates SET is_locked = ? WHERE plate_id = ?", (1 if new_lock_state else 0, selected_pid))
-            if hasattr(conn, "commit"): conn.commit()
-            conn.close()
-            st.session_state.loaded_metadata['is_locked'] = 1 if new_lock_state else 0
-            if new_lock_state:
-                st.session_state.lib_edit_mode = False
-            st.rerun()
-        except Exception as e:
-            st.error(f"Failed to update lock state: {e}")
+    # Plate Lock and Check Toggles
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        is_locked = bool(st.session_state.loaded_metadata.get('is_locked', 0))
+        new_lock_state = st.checkbox("🔒 Locked from Deletion", value=is_locked, key="plate_lock_checkbox")
+        if new_lock_state != is_locked:
+            try:
+                conn = get_connection()
+                conn.execute("UPDATE plates SET is_locked = ? WHERE plate_id = ?", (1 if new_lock_state else 0, selected_pid))
+                if hasattr(conn, "commit"): conn.commit()
+                conn.close()
+                st.session_state.loaded_metadata['is_locked'] = 1 if new_lock_state else 0
+                if new_lock_state:
+                    st.session_state.lib_edit_mode = False
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to update lock state: {e}")
+                
+    with col_t2:
+        is_checked = bool(st.session_state.loaded_metadata.get('is_checked', 0))
+        new_check_state = st.checkbox("✅ MIC manually checked", value=is_checked, key="plate_check_checkbox")
+        if new_check_state != is_checked:
+            try:
+                conn = get_connection()
+                conn.execute("UPDATE plates SET is_checked = ? WHERE plate_id = ?", (1 if new_check_state else 0, selected_pid))
+                if hasattr(conn, "commit"): conn.commit()
+                conn.close()
+                st.session_state.loaded_metadata['is_checked'] = 1 if new_check_state else 0
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to update checked state: {e}")
 
     # Toggle Lock/Unlock for Editing (UI Session State)
     if not st.session_state.get('lib_edit_mode'):

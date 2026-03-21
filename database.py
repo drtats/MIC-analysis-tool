@@ -219,6 +219,7 @@ def init_db():
                 created_at TEXT,
                 is_deleted INTEGER DEFAULT 0,
                 is_locked INTEGER DEFAULT 0,
+                is_checked INTEGER DEFAULT 0,
                 FOREIGN KEY (experiment_id) REFERENCES experiments (experiment_id)
             )
         ''', ()),
@@ -307,6 +308,10 @@ def init_db():
             conn.execute('ALTER TABLE plates ADD COLUMN is_locked INTEGER DEFAULT 0')
         except:
             pass
+        try:
+            conn.execute('ALTER TABLE plates ADD COLUMN is_checked INTEGER DEFAULT 0')
+        except:
+            pass
     else:
         # SQLite path
         cursor = conn.cursor()
@@ -326,6 +331,8 @@ def init_db():
             cursor.execute('ALTER TABLE plates ADD COLUMN is_deleted INTEGER DEFAULT 0')
         if 'is_locked' not in p_columns:
             cursor.execute('ALTER TABLE plates ADD COLUMN is_locked INTEGER DEFAULT 0')
+        if 'is_checked' not in p_columns:
+            cursor.execute('ALTER TABLE plates ADD COLUMN is_checked INTEGER DEFAULT 0')
         
         conn.commit()
     
