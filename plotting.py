@@ -90,43 +90,10 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
     # Define high-visibility symbol sequence
     symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
     
-    # Create the strip plot
-    fig = px.strip(
-        plot_df,
-        x=group_cols[0] if len(group_cols) == 1 else None, # Use single col if only 1
-        y='mic_value',
-        color=color_col,
-        symbol=symbol_col,
-        symbol_sequence=symbols,
-        hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
-        title="MIC Distribution by Group",
-        labels={'mic_value': 'MIC Value'},
-        stripmode='overlay',
-        color_discrete_sequence=px.colors.qualitative.Prism,
-        category_orders=category_orders
-    )
-    
-    fig.update_traces(marker_size=10, marker_opacity=0.8)
-    
-    # Update Y-axis to be log2 scaled for MICs
-    fig.update_layout(
-        yaxis=dict(
-            type='log',
-            dtick=math.log10(2),
-            tickmode='array',
-            # Generate common MIC values for ticks
-            tickvals=[2**i for i in range(-10, 15)],
-            ticktext=[str(2**i) if 2**i >= 1 else f"1/{2**-i}" for i in range(-10, 15)]
-        )
-    )
-    
-    # If multiple grouping columns, we combine them but Plotly doesn't easily handle 
-    # category_orders for a combined column unless we pre-sort the DF.
-    
-    if len(group_cols) > 1:
+    # Create a combined grouping label for the X-axis to handle ordering and jittering
+    if group_cols:
         # Sort the dataframe according to the desired category orders before combining
         sort_cols = []
-        sort_orders = []
         for col in group_cols:
             if category_orders and col in category_orders:
                 # To sort by a specific list, we can use Categorical mapping
@@ -137,38 +104,51 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             plot_df = plot_df.sort_values(by=sort_cols)
             
         plot_df['Group'] = plot_df[group_cols].astype(str).agg(' | '.join, axis=1)
-        
-        # Re-create figure with the sorted 'Group' column
-        fig = px.strip(
-            plot_df,
-            x='Group',
-            y='mic_value',
-            color=color_col,
-            symbol=symbol_col,
-            symbol_sequence=symbols,
-            color_discrete_sequence=px.colors.qualitative.Prism,
-            hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
-            title="MIC Distribution by Group",
-            labels={'Group': ' / '.join(group_cols), 'mic_value': 'MIC Value'},
-            stripmode='overlay',
-            category_orders={'Group': plot_df['Group'].unique().tolist()} # Use the sorted unique values
-        )
-        fig.update_traces(marker_size=10, marker_opacity=0.8)
-        
-    elif len(group_cols) == 0:
+    else:
         plot_df['Group'] = 'All Data'
-        fig = px.strip(
-            plot_df,
-            x='Group',
-            y='mic_value',
-            color=color_col,
-            symbol=symbol_col,
-            symbol_sequence=symbols,
-            color_discrete_sequence=px.colors.qualitative.Prism,
-            title="Global MIC Distribution",
-            labels={'mic_value': 'MIC Value'},
-            stripmode='overlay'
+        
+    # Manual Jittering for px.scatter (since px.strip doesn't support 'symbol')
+    unique_groups = plot_df['Group'].unique().tolist()
+    group_map = {group: i for i, group in enumerate(unique_groups)}
+    plot_df['Group_Index'] = plot_df['Group'].map(group_map)
+    # Add random jitter offset
+    np.random.seed(42) # Consistent jitter for reruns
+    plot_df['Group_Jittered'] = plot_df['Group_Index'] + np.random.uniform(-0.25, 0.25, size=len(plot_df))
+    
+    # Create the scatter plot
+    fig = px.scatter(
+        plot_df,
+        x='Group_Jittered',
+        y='mic_value',
+        color=color_col,
+        symbol=symbol_col,
+        symbol_sequence=symbols,
+        hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
+        title="MIC Distribution by Group",
+        labels={'Group_Jittered': ' / '.join(group_cols) if group_cols else 'Global', 'mic_value': 'MIC Value'},
+        color_discrete_sequence=px.colors.qualitative.Prism,
+        category_orders=category_orders
+    )
+    
+    # Set high-visibility marker style
+    fig.update_traces(marker=dict(size=12, opacity=0.9, line=dict(width=1, color='DarkSlateGrey')))
+    
+    # Update X-axis to show category labels instead of numeric indices
+    fig.update_layout(
+        xaxis=dict(
+            tickmode='array',
+            tickvals=list(range(len(unique_groups))),
+            ticktext=unique_groups,
+            title=' / '.join(group_cols) if group_cols else ''
+        ),
+        yaxis=dict(
+            type='log',
+            dtick=math.log10(2),
+            tickmode='array',
+            # Generate common MIC values for ticks
+            tickvals=[2**i for i in range(-10, 15)],
+            ticktext=[str(2**i) if 2**i >= 1 else f"1/{2**-i}" for i in range(-10, 15)]
         )
-        fig.update_traces(marker_size=12, marker_opacity=0.9)
+    )
     
     return fig
