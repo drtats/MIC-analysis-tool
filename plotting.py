@@ -90,6 +90,16 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
     # Define high-visibility symbol sequence
     symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
     
+    # Generate evenly spaced colors from a rainbow scale (Turbo) if color_col is used
+    color_seq = px.colors.qualitative.Prism # Fallback
+    if color_col and color_col in plot_df.columns:
+        n_colors = len(plot_df[color_col].unique())
+        if n_colors > 1:
+            color_offsets = [i / (n_colors - 1) for i in range(n_colors)]
+            color_seq = px.colors.sample_colorscale("turbo", color_offsets)
+        elif n_colors == 1:
+            color_seq = px.colors.sample_colorscale("turbo", [0.5])
+
     # Create a combined grouping label for the X-axis to handle ordering and jittering
     if group_cols:
         # Sort the dataframe according to the desired category orders before combining
@@ -126,7 +136,7 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
         hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
         title="MIC Distribution by Group",
         labels={'Group_Jittered': ' / '.join(group_cols) if group_cols else 'Global', 'mic_value': 'MIC Value'},
-        color_discrete_sequence=px.colors.qualitative.Prism,
+        color_discrete_sequence=color_seq,
         category_orders=category_orders
     )
     
