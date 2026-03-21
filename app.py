@@ -11,7 +11,7 @@ from models import WellData, PlateData, ExperimentData, MICResult
 from parser import matrix_to_long_format
 from background import calculate_background, subtract_background, apply_threshold
 from mic_calc import group_and_calculate_mics
-from plotting import plot_plate_heatmap, plot_growth_map
+from plotting import plot_plate_heatmap, plot_growth_map, plot_mic_dot_plot
 
 # Page Config
 st.set_page_config(page_title="MIC Analysis Tool", layout="wide")
@@ -312,8 +312,8 @@ if 'nav_mode' not in st.session_state:
     st.session_state.nav_mode = "New Plate"
 
 with st.sidebar:
-    st.title("MIC Tool")
-    nav_options = ["New Plate", "Plate Library", "Search Results"]
+    st.title("MIC Analysis")
+    nav_options = ["New Plate", "Plate Library", "Search Results", "Visualization"]
     mode = st.radio("Navigation", nav_options, index=nav_options.index(st.session_state.nav_mode))
     st.session_state.nav_mode = mode
     
@@ -605,6 +605,53 @@ elif mode == "Search Results":
     except Exception as e:
         st.error(f"Search failed: {e}")
         conn.close()
+
+elif mode == "Visualization":
+    st.header("Generate Visualization")
+    conn = get_connection()
+    
+    # Fetch all relevant MIC results joined with metadata
+    # We join mic_results with plates and experiments
+    query = """
+        SELECT m.*, p.plate_name, p.plate_format, e.date, e.person, e.reader
+        FROM mic_results m
+        JOIN plates p ON m.plate_id = p.plate_id
+        JOIN experiments e ON p.experiment_id = e.experiment_id
+        WHERE p.is_deleted = 0
+    """
+    df_all = pd.read_sql_query(query, conn)
+    conn.close()
+    
+    if df_all.empty:
+        st.info("No data available for visualization. Save some experiments first!")
+    else:
+        st.subheader("Dot Plot Settings")
+        
+        # Identify possible grouping columns
+        # Standard columns
+        standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            group_by = st.multiselect(
+                "Group by (select in order)", 
+                options=standard_cols,
+                default=['antibiotic', 'strain']
+            )
+        
+        with col2:
+            color_by = st.selectbox(
+                "Color by",
+                options=[None] + standard_cols,
+                index=0
+            )
+            
+        if st.button("Generate Dot Plot", type="primary"):
+            fig = plot_mic_dot_plot(df_all, group_by, color_by)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.error("Could not generate plot with selected data.")
 
 # --- GLOBAL RESULTS DISPLAY ---
 if 'wells' in st.session_state and st.session_state.wells:

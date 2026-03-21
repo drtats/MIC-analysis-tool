@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import math
 from typing import List, Optional
 from models import WellData
 
@@ -68,5 +69,52 @@ def plot_growth_map(wells: List[WellData], title: str = "Growth/No-Growth Map"):
     fig.update_traces(
         hovertemplate="Well: %{y}%{x}<br>Growth: %{z}<extra></extra>"
     )
+    
+    return fig
+
+def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Optional[str] = None):
+    """
+    Generates a dot plot (strip plot) for MIC values across different conditions.
+    df: DataFrame containing MIC results.
+    group_cols: List of column names to used for grouping on the X-axis.
+    color_col: Column name to use for coloring indices.
+    """
+    if df.empty:
+        return None
+        
+    # Copy and prepare data
+    plot_df = df.copy()
+    
+    # Create a combined grouping label for the X-axis
+    if group_cols:
+        plot_df['Group'] = plot_df[group_cols].astype(str).agg(' | '.join, axis=1)
+    else:
+        plot_df['Group'] = 'All Data'
+        
+    # Create the strip plot
+    fig = px.strip(
+        plot_df,
+        x='Group',
+        y='mic_value',
+        color=color_col,
+        hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
+        title="MIC Distribution by Group",
+        labels={'Group': ' / '.join(group_cols) if group_cols else 'Global', 'mic_value': 'MIC Value'},
+        stripmode='overlay'
+    )
+    
+    # Update Y-axis to be log2 scaled for MICs
+    fig.update_layout(
+        yaxis=dict(
+            type='log',
+            dtick=math.log10(2),
+            tickmode='array',
+            # Generate common MIC values for ticks
+            tickvals=[2**i for i in range(-10, 15)],
+            ticktext=[str(2**i) if 2**i >= 1 else f"1/{2**-i}" for i in range(-10, 15)]
+        )
+    )
+    
+    fig.update_traces(marker=dict(size=10, opacity=0.7))
     
     return fig
