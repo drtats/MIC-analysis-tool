@@ -96,7 +96,7 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
         title="MIC Distribution by Group",
         labels={'mic_value': 'MIC Value'},
         stripmode='overlay',
-        color_discrete_sequence=px.colors.qualitative.Bold,
+        color_discrete_sequence=px.colors.qualitative.Prism,
         category_orders=category_orders
     )
     
@@ -124,7 +124,7 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Bold,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
             title="MIC Distribution by Group",
             labels={'Group': ' / '.join(group_cols), 'mic_value': 'MIC Value'},
@@ -138,7 +138,7 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Bold,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             title="Global MIC Distribution",
             labels={'mic_value': 'MIC Value'},
             stripmode='overlay'
