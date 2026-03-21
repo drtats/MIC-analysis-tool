@@ -627,23 +627,49 @@ elif mode == "Visualization":
     else:
         st.subheader("1. Select Data (Filters)")
         
-        # Define fields to filter by
-        filter_fields = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'person', 'reader']
-        current_filters = {}
+        # Initialize extra filters in session state
+        if 'viz_extra_filters' not in st.session_state:
+            st.session_state.viz_extra_filters = []
+            
+        # Define available fields
+        standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
         
-        # Create filters in a 2-column layout
-        filter_cols = st.columns(2)
-        for i, field in enumerate(filter_fields):
+        # 1a. Default Filters (Strain and Antibiotic)
+        current_filters = {}
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            all_strains = sorted(df_all['strain'].unique().tolist())
+            current_filters['strain'] = st.multiselect("Filter Strains", options=all_strains, default=all_strains, key="viz_f_strain")
+        with col_f2:
+            all_abs = sorted(df_all['antibiotic'].unique().tolist())
+            current_filters['antibiotic'] = st.multiselect("Filter Antibiotics", options=all_abs, default=all_abs, key="viz_f_ab")
+            
+        # 1b. Add Extra Filter Dropdown
+        remaining_fields = [f for f in standard_cols if f not in ['strain', 'antibiotic'] and f not in st.session_state.viz_extra_filters]
+        if remaining_fields:
+            new_f = st.selectbox("➕ Add another filter for...", ["-- Select --"] + remaining_fields, key="viz_add_f_select")
+            if new_f != "-- Select --":
+                st.session_state.viz_extra_filters.append(new_f)
+                st.rerun()
+                
+        # 1c. Render Extra Filters
+        to_delete = []
+        for field in st.session_state.viz_extra_filters:
+            col_ef1, col_ef2 = st.columns([4, 1])
             if field in df_all.columns:
                 unique_vals = sorted(df_all[field].unique().tolist())
-                # Use a specific key for each multiselect to avoid session_state conflicts
-                with filter_cols[i % 2]:
-                    current_filters[field] = st.multiselect(
-                        f"Filter {field.replace('_', ' ').title()}", 
-                        options=unique_vals, 
-                        default=unique_vals,
-                        key=f"viz_filter_{field}"
-                    )
+                current_filters[field] = col_ef1.multiselect(
+                    f"Filter {field.replace('_', ' ').title()}", 
+                    options=unique_vals, 
+                    default=unique_vals,
+                    key=f"viz_filter_{field}"
+                )
+            if col_ef2.button("✖", key=f"viz_del_{field}"):
+                to_delete.append(field)
+        
+        for field in to_delete:
+            st.session_state.viz_extra_filters.remove(field)
+            st.rerun()
             
         # Apply filters dynamically
         df_filtered = df_all.copy()
@@ -657,7 +683,7 @@ elif mode == "Visualization":
             st.subheader("2. Dot Plot Settings (Grouping)")
             
             # Identify possible grouping columns
-            standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
+            # standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader'] # This was moved up
             
             v_col1, v_col2, v_col3 = st.columns(3)
             with v_col1:
