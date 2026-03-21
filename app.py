@@ -650,17 +650,24 @@ elif mode == "Visualization":
             # Identify possible grouping columns
             standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
             
-            col1, col2 = st.columns(2)
-            with col1:
+            v_col1, v_col2, v_col3 = st.columns(3)
+            with v_col1:
                 group_by = st.multiselect(
                     "Group by (select in order)", 
                     options=standard_cols,
                     default=['antibiotic', 'strain']
                 )
             
-            with col2:
+            with v_col2:
                 color_by = st.selectbox(
                     "Color by",
+                    options=[None] + standard_cols,
+                    index=standard_cols.index('strain') + 1 if 'strain' in standard_cols else 0
+                )
+
+            with v_col3:
+                shape_by = st.selectbox(
+                    "Shape by",
                     options=[None] + standard_cols,
                     index=0
                 )
@@ -671,7 +678,7 @@ elif mode == "Visualization":
                     "strain": f_strain,
                     "antibiotic": f_ab
                 }
-                fig = plot_mic_dot_plot(df_filtered, group_by, color_by, category_orders=cat_orders)
+                fig = plot_mic_dot_plot(df_filtered, group_by, color_by, symbol_col=shape_by, category_orders=cat_orders)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
                 else:

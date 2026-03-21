@@ -72,12 +72,13 @@ def plot_growth_map(wells: List[WellData], title: str = "Growth/No-Growth Map"):
     
     return fig
 
-def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Optional[str] = None, category_orders: Optional[Dict[str, List]] = None):
+def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Optional[str] = None, symbol_col: Optional[str] = None, category_orders: Optional[Dict[str, List]] = None):
     """
     Generates a dot plot (strip plot) for MIC values across different conditions.
     df: DataFrame containing MIC results.
     group_cols: List of column names to used for grouping on the X-axis.
     color_col: Column name to use for coloring indices.
+    symbol_col: Column name to use for symbol/shape.
     category_orders: Dictionary mapping column names to a specific order of categories.
     """
     if df.empty:
@@ -86,20 +87,38 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
     # Copy and prepare data
     plot_df = df.copy()
     
+    # Define high-visibility symbol sequence
+    symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
+    
     # Create the strip plot
     fig = px.strip(
         plot_df,
         x=group_cols[0] if len(group_cols) == 1 else None, # Use single col if only 1
         y='mic_value',
         color=color_col,
+        symbol=symbol_col,
+        symbol_sequence=symbols,
         hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
         title="MIC Distribution by Group",
         labels={'mic_value': 'MIC Value'},
         stripmode='overlay',
-        color_discrete_sequence=px.colors.qualitative.Vivid,
+        color_discrete_sequence=px.colors.qualitative.Prism,
         category_orders=category_orders
     )
+    
     fig.update_traces(marker_size=10, marker_opacity=0.8)
+    
+    # Update Y-axis to be log2 scaled for MICs
+    fig.update_layout(
+        yaxis=dict(
+            type='log',
+            dtick=math.log10(2),
+            tickmode='array',
+            # Generate common MIC values for ticks
+            tickvals=[2**i for i in range(-10, 15)],
+            ticktext=[str(2**i) if 2**i >= 1 else f"1/{2**-i}" for i in range(-10, 15)]
+        )
+    )
     
     # If multiple grouping columns, we combine them but Plotly doesn't easily handle 
     # category_orders for a combined column unless we pre-sort the DF.
@@ -125,7 +144,9 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Vivid,
+            symbol=symbol_col,
+            symbol_sequence=symbols,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             hover_data=group_cols + (['mic_operator', 'mic_unit'] if 'mic_operator' in plot_df.columns else []),
             title="MIC Distribution by Group",
             labels={'Group': ' / '.join(group_cols), 'mic_value': 'MIC Value'},
@@ -141,25 +162,13 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
             x='Group',
             y='mic_value',
             color=color_col,
-            color_discrete_sequence=px.colors.qualitative.Vivid,
+            symbol=symbol_col,
+            symbol_sequence=symbols,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             title="Global MIC Distribution",
             labels={'mic_value': 'MIC Value'},
             stripmode='overlay'
         )
-        fig.update_traces(marker_size=10, marker_opacity=0.8)
-    
-    # Update Y-axis to be log2 scaled for MICs
-    fig.update_layout(
-        yaxis=dict(
-            type='log',
-            dtick=math.log10(2),
-            tickmode='array',
-            # Generate common MIC values for ticks
-            tickvals=[2**i for i in range(-10, 15)],
-            ticktext=[str(2**i) if 2**i >= 1 else f"1/{2**-i}" for i in range(-10, 15)]
-        )
-    )
-    
-    fig.update_traces(marker=dict(size=10, opacity=0.7))
+        fig.update_traces(marker_size=12, marker_opacity=0.9)
     
     return fig
