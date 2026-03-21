@@ -650,10 +650,14 @@ elif mode == "Visualization":
             if a not in st.session_state.viz_order_ab: st.session_state.viz_order_ab.append(a)
             
         # Reorder UI
-        with st.expander("🔄 Reorder Selection (Drag not supported, use buttons)", expanded=False):
+        st.subheader("1.5 Reorder Selected Categories")
+        st.info("💡 Use the buttons below to change the display order on the X-axis.")
+        
+        re_col1, re_col2 = st.columns(2)
+        with re_col1:
             st.write("**Strains Order**")
             for i, s in enumerate(st.session_state.viz_order_strain):
-                c1, c2, c3, c4 = st.columns([4, 1, 1, 4])
+                c1, c2, c3 = st.columns([6, 1, 1])
                 c1.write(f"• {s}")
                 if c2.button("🔼", key=f"up_s_{i}") and i > 0:
                     st.session_state.viz_order_strain[i], st.session_state.viz_order_strain[i-1] = st.session_state.viz_order_strain[i-1], st.session_state.viz_order_strain[i]
@@ -662,10 +666,10 @@ elif mode == "Visualization":
                     st.session_state.viz_order_strain[i], st.session_state.viz_order_strain[i+1] = st.session_state.viz_order_strain[i+1], st.session_state.viz_order_strain[i]
                     st.rerun()
 
-            st.divider()
+        with re_col2:
             st.write("**Antibiotics Order**")
             for i, a in enumerate(st.session_state.viz_order_ab):
-                c1, c2, c3, c4 = st.columns([4, 1, 1, 4])
+                c1, c2, c3 = st.columns([6, 1, 1])
                 c1.write(f"• {a}")
                 if c2.button("🔼", key=f"up_a_{i}") and i > 0:
                     st.session_state.viz_order_ab[i], st.session_state.viz_order_ab[i-1] = st.session_state.viz_order_ab[i-1], st.session_state.viz_order_ab[i]
