@@ -290,10 +290,12 @@ def init_db():
     ]
 
     if isinstance(conn, TursoConnection):
+        print("Using Turso Connection - running batch init...")
         conn.execute_batch(stmts)
         # Migration: Check extra_labels_json (this is slightly harder in batch if results are needed)
         # But we can just run it as a separate execute if needed, or assume it's there.
         # Actually, let's just run it.
+        print("Running Turso Migrations...")
         try:
             conn.execute('ALTER TABLE wells ADD COLUMN extra_labels_json TEXT')
         except:
@@ -310,10 +312,13 @@ def init_db():
             pass
         try:
             conn.execute('ALTER TABLE plates ADD COLUMN is_checked INTEGER DEFAULT 0')
+            print("Turso: added is_checked to plates")
         except:
             pass
+        print("Turso Init Complete.")
     else:
         # SQLite path
+        print("Using SQLite Connection - running init...")
         cursor = conn.cursor()
         for s, a in stmts:
             cursor.execute(s, a)
@@ -333,8 +338,10 @@ def init_db():
             cursor.execute('ALTER TABLE plates ADD COLUMN is_locked INTEGER DEFAULT 0')
         if 'is_checked' not in p_columns:
             cursor.execute('ALTER TABLE plates ADD COLUMN is_checked INTEGER DEFAULT 0')
+            print("SQLite: added is_checked to plates")
         
         conn.commit()
+        print("SQLite Init Complete.")
     
     conn.close()
 

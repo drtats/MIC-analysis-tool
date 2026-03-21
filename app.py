@@ -35,9 +35,9 @@ def get_admin_password():
         
     return None
 
-# Initialize DB on first run
+# Initialize DB
+init_db()
 if 'db_init' not in st.session_state:
-    init_db()
     st.session_state.db_init = True
 
 # Helper to create empty 8x12 grid
