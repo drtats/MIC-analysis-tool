@@ -610,10 +610,11 @@ elif mode == "Visualization":
     st.header("Generate Visualization")
     conn = get_connection()
     
-    # Fetch all relevant MIC results joined with metadata
-    # We join mic_results with plates and experiments
+    # Fetch all relevant MIC results joined with ALL metadata
     query = """
-        SELECT m.*, p.plate_name, p.plate_format, e.date, e.person, e.reader
+        SELECT m.*, p.plate_name, p.plate_format, p.threshold, p.threshold_method, 
+               e.date, e.person, e.reader, e.incubation_time, e.inoculum_od, 
+               e.growth_phase, e.harvest_od, e.doubling_time, e.notes as exp_notes
         FROM mic_results m
         JOIN plates p ON m.plate_id = p.plate_id
         JOIN experiments e ON p.experiment_id = e.experiment_id
@@ -625,6 +626,28 @@ elif mode == "Visualization":
     if df_all.empty:
         st.info("No data available for visualization. Save some experiments first!")
     else:
+        # Dynamic discovery of categorical/grouping columns
+        exclude_cols = [
+            'mic_result_id', 'plate_id', 'experiment_id', 'group_id', 
+            'mic_value', 'threshold', 'lowest_tested_conc', 'highest_tested_conc', 
+            'concentration_values_json', 'num_points', 'is_deleted', 
+            'is_locked', 'is_checked', 'harvest_od', 'doubling_time', 'inoculum_od',
+            'incubation_time' # Some numeric metadata might be better as categories if discrete
+        ]
+        
+        # We might want to keep some numeric metadata if they are discrete experimental parameters
+        # For now, let's treat anything that isn't the primary MIC result as a potential group
+        all_cols = df_all.columns.tolist()
+        groupable_cols = [c for c in all_cols if c not in exclude_cols and not c.startswith('extra_labels_')]
+        
+        # Add back numeric metadata that makes sense for grouping (if they have few unique values)
+        potential_numeric_groups = ['inoculum_od', 'incubation_time', 'threshold']
+        for c in potential_numeric_groups:
+            if c in df_all.columns and len(df_all[c].unique()) < 20: 
+                groupable_cols.append(c)
+        
+        standard_cols = sorted(list(set(groupable_cols)))
+        
         st.subheader("1. Select Data (Filters)")
         
         # Initialize extra filters in session state
