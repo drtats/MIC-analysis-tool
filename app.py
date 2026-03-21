@@ -664,15 +664,10 @@ elif mode == "Visualization":
         standard_cols = sorted(list(set(groupable_cols)))
         
         st.subheader("1. Select Data (Filters)")
-        st.caption(f"Available metadata fields: {', '.join(standard_cols)}")
         
         # Initialize extra filters in session state
         if 'viz_extra_filters' not in st.session_state:
             st.session_state.viz_extra_filters = []
-            
-        # Define available fields
-        standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
-        
         # 1a. Default Filters (Strain and Antibiotic)
         current_filters = {}
         col_f1, col_f2 = st.columns(2)

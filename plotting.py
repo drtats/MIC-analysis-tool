@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import math
-from typing import List, Optional
+from typing import List, Optional, Dict
 from models import WellData
 
 def plot_plate_heatmap(wells: List[WellData], value_field: str = "od_raw", title: str = "Plate Heatmap"):
