@@ -625,33 +625,52 @@ elif mode == "Visualization":
     if df_all.empty:
         st.info("No data available for visualization. Save some experiments first!")
     else:
-        st.subheader("Dot Plot Settings")
+        st.subheader("1. Select Data (Filters)")
         
-        # Identify possible grouping columns
-        # Standard columns
-        standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
+        all_strains = sorted(df_all['strain'].unique().tolist())
+        all_abs = sorted(df_all['antibiotic'].unique().tolist())
         
-        col1, col2 = st.columns(2)
-        with col1:
-            group_by = st.multiselect(
-                "Group by (select in order)", 
-                options=standard_cols,
-                default=['antibiotic', 'strain']
-            )
-        
-        with col2:
-            color_by = st.selectbox(
-                "Color by",
-                options=[None] + standard_cols,
-                index=0
-            )
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            f_strain = st.multiselect("Filter Strains", options=all_strains, default=all_strains)
+        with col_f2:
+            f_ab = st.multiselect("Filter Antibiotics", options=all_abs, default=all_abs)
             
-        if st.button("Generate Dot Plot", type="primary"):
-            fig = plot_mic_dot_plot(df_all, group_by, color_by)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.error("Could not generate plot with selected data.")
+        # Apply filters
+        df_filtered = df_all[
+            (df_all['strain'].isin(f_strain)) & 
+            (df_all['antibiotic'].isin(f_ab))
+        ].copy()
+        
+        if df_filtered.empty:
+            st.warning("No data matches the selected filters.")
+        else:
+            st.subheader("2. Dot Plot Settings (Grouping)")
+            
+            # Identify possible grouping columns
+            standard_cols = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'date', 'person', 'reader']
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                group_by = st.multiselect(
+                    "Group by (select in order)", 
+                    options=standard_cols,
+                    default=['antibiotic', 'strain']
+                )
+            
+            with col2:
+                color_by = st.selectbox(
+                    "Color by",
+                    options=[None] + standard_cols,
+                    index=0
+                )
+                
+            if st.button("Generate Dot Plot", type="primary"):
+                fig = plot_mic_dot_plot(df_filtered, group_by, color_by)
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Could not generate plot with selected data.")
 
 # --- GLOBAL RESULTS DISPLAY ---
 if 'wells' in st.session_state and st.session_state.wells:
