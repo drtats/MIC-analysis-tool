@@ -627,20 +627,29 @@ elif mode == "Visualization":
     else:
         st.subheader("1. Select Data (Filters)")
         
-        all_strains = sorted(df_all['strain'].unique().tolist())
-        all_abs = sorted(df_all['antibiotic'].unique().tolist())
+        # Define fields to filter by
+        filter_fields = ['strain', 'antibiotic', 'media', 'replicate', 'plate_name', 'person', 'reader']
+        current_filters = {}
         
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            f_strain = st.multiselect("Filter Strains", options=all_strains, default=all_strains)
-        with col_f2:
-            f_ab = st.multiselect("Filter Antibiotics", options=all_abs, default=all_abs)
+        # Create filters in a 2-column layout
+        filter_cols = st.columns(2)
+        for i, field in enumerate(filter_fields):
+            if field in df_all.columns:
+                unique_vals = sorted(df_all[field].unique().tolist())
+                # Use a specific key for each multiselect to avoid session_state conflicts
+                with filter_cols[i % 2]:
+                    current_filters[field] = st.multiselect(
+                        f"Filter {field.replace('_', ' ').title()}", 
+                        options=unique_vals, 
+                        default=unique_vals,
+                        key=f"viz_filter_{field}"
+                    )
             
-        # Apply filters
-        df_filtered = df_all[
-            (df_all['strain'].isin(f_strain)) & 
-            (df_all['antibiotic'].isin(f_ab))
-        ].copy()
+        # Apply filters dynamically
+        df_filtered = df_all.copy()
+        for field, selected in current_filters.items():
+            if selected:
+                df_filtered = df_filtered[df_filtered[field].isin(selected)]
         
         if df_filtered.empty:
             st.warning("No data matches the selected filters.")
@@ -655,29 +664,30 @@ elif mode == "Visualization":
                 group_by = st.multiselect(
                     "Group by (select in order)", 
                     options=standard_cols,
-                    default=['antibiotic', 'strain']
+                    default=['antibiotic', 'strain'],
+                    key="viz_group_by"
                 )
             
             with v_col2:
                 color_by = st.selectbox(
                     "Color by",
                     options=[None] + standard_cols,
-                    index=standard_cols.index('strain') + 1 if 'strain' in standard_cols else 0
+                    index=standard_cols.index('strain') + 1 if 'strain' in standard_cols else 0,
+                    key="viz_color_by"
                 )
 
             with v_col3:
                 shape_by = st.selectbox(
                     "Shape by",
                     options=[None] + standard_cols,
-                    index=0
+                    index=0,
+                    key="viz_shape_by"
                 )
                 
             if st.button("Generate Dot Plot", type="primary"):
-                # Use the multiselect order directly
-                cat_orders = {
-                    "strain": f_strain,
-                    "antibiotic": f_ab
-                }
+                # Capturing ALL filtered orders to ensure visual alignment
+                cat_orders = {field: selected for field, selected in current_filters.items() if selected}
+                
                 fig = plot_mic_dot_plot(df_filtered, group_by, color_by, symbol_col=shape_by, category_orders=cat_orders)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
