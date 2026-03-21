@@ -95,7 +95,8 @@ def plot_mic_dot_plot(df: pd.DataFrame, group_cols: List[str], color_col: Option
     if color_col and color_col in plot_df.columns:
         n_colors = len(plot_df[color_col].unique())
         if n_colors > 1:
-            color_offsets = [i / (n_colors - 1) for i in range(n_colors)]
+            # Narrow the range to 0.1 - 0.9 to skip the darkest colors
+            color_offsets = [0.1 + (i / (n_colors - 1)) * 0.8 for i in range(n_colors)]
             color_seq = px.colors.sample_colorscale("turbo", color_offsets)
         elif n_colors == 1:
             color_seq = px.colors.sample_colorscale("turbo", [0.5])
