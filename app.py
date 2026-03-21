@@ -611,9 +611,13 @@ elif mode == "Visualization":
     conn = get_connection()
     
     # Fetch all relevant MIC results joined with ALL metadata and custom labels
-    # We join mic_results (m) with plates (p), experiments (e), and pick first well's labels (w)
+    # We explicitly list columns to avoid name collisions and ensure inoculum_od is pulled
     query = """
-        SELECT m.*, p.*, e.*, e.notes as exp_notes, w.extra_labels_json
+        SELECT m.*, 
+               p.plate_name, p.plate_format, p.threshold, p.threshold_method, p.background_method,
+               e.date, e.person, e.reader, e.incubation_time, e.inoculum_od, e.growth_phase, 
+               e.harvest_od, e.doubling_time, e.notes as exp_notes,
+               w.extra_labels_json
         FROM mic_results m
         JOIN plates p ON m.plate_id = p.plate_id
         JOIN experiments e ON p.experiment_id = e.experiment_id
@@ -660,6 +664,7 @@ elif mode == "Visualization":
         standard_cols = sorted(list(set(groupable_cols)))
         
         st.subheader("1. Select Data (Filters)")
+        st.caption(f"Available metadata fields: {', '.join(standard_cols)}")
         
         # Initialize extra filters in session state
         if 'viz_extra_filters' not in st.session_state:
