@@ -666,7 +666,12 @@ elif mode == "Visualization":
                 )
                 
             if st.button("Generate Dot Plot", type="primary"):
-                fig = plot_mic_dot_plot(df_filtered, group_by, color_by)
+                # Create category orders from the multiselect order
+                cat_orders = {
+                    "strain": f_strain,
+                    "antibiotic": f_ab
+                }
+                fig = plot_mic_dot_plot(df_filtered, group_by, color_by, category_orders=cat_orders)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
